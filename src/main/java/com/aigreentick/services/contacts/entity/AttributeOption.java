@@ -1,11 +1,9 @@
 package com.aigreentick.services.contacts.entity;
 
-
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -14,14 +12,14 @@ import java.time.LocalDateTime;
         name = "attribute_options",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_attropt_attrdef_key",
+                        name = "uk_attr_option",
                         columnNames = {"attribute_definition_id", "option_key"}
                 )
         },
         indexes = {
                 @Index(
-                        name = "idx_attropt_tenant_attrdef",
-                        columnList = "tenant_id, attribute_definition_id"
+                        name = "idx_attr_option_def",
+                        columnList = "attribute_definition_id"
                 )
         }
 )
@@ -33,9 +31,6 @@ public class AttributeOption {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
     private Long id;
-
-    @Column(name = "tenant_id", nullable = false)
-    private Long tenantId;
 
     @Column(name = "attribute_definition_id", nullable = false)
     private Long attributeDefinitionId;
@@ -55,9 +50,4 @@ public class AttributeOption {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }
-

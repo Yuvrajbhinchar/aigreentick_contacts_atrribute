@@ -1,6 +1,5 @@
 package com.aigreentick.services.contacts.entity;
 
-
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,17 +11,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "contacts",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_contacts_tenant_phone",
-                        columnNames = {"tenant_id", "wa_phone_e164"}
-                )
-        },
         indexes = {
-                @Index(
-                        name = "idx_contacts_tenant_updated",
-                        columnList = "tenant_id, updated_at"
-                )
+                @Index(name = "idx_org_last_seen", columnList = "organization_id, last_seen_at DESC"),
+                @Index(name = "idx_org_display_name", columnList = "organization_id, display_name")
         }
 )
 @Getter
@@ -34,8 +25,8 @@ public class Contact {
     @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(name = "tenant_id", nullable = false)
-    private Long tenantId;
+    @Column(name = "organization_id", nullable = false)
+    private Long organizationId;
 
     @Column(name = "wa_phone_e164", nullable = false, length = 20)
     private String waPhoneE164;
@@ -50,6 +41,12 @@ public class Contact {
     @Column(name = "source", nullable = false)
     private Source source = Source.manual;
 
+    @Column(name = "first_seen_at", nullable = false)
+    private LocalDateTime firstSeenAt = LocalDateTime.now();
+
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -60,7 +57,9 @@ public class Contact {
 
     // -------- ENUM (must match DB exactly) --------
     public enum Source {
-        manual
+        manual,
+        import_,  // 'import' is a reserved keyword in Java
+        integration,
+        inbound
     }
 }
-

@@ -3,7 +3,7 @@ spring:
     name: contactsspring.application.name=contacts
 
   datasource:
-    url: jdbc:mysql://localhost:3306/aigreen?serverTimezone=UTC&useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useLocalSessionState=true&rewriteBatchedStatements=true&cacheServerConfiguration=true&cacheResultSetMetadata=true&maintainTimeStats=false
+    url: jdbc:mysql://localhost:3306/apargo_wa_messaging?serverTimezone=UTC&useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useLocalSessionState=true&rewriteBatchedStatements=true&cacheServerConfiguration=true&cacheResultSetMetadata=true&maintainTimeStats=false
     username: root
     password: yuvraj@3933
     driver-class-name: com.mysql.cj.jdbc.Driver

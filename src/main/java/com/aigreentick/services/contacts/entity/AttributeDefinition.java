@@ -1,6 +1,5 @@
 package com.aigreentick.services.contacts.entity;
 
-
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,11 +12,11 @@ import java.time.LocalDateTime;
 @Table(
         name = "attribute_definitions",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_attrdef_tenant_key", columnNames = {"tenant_id", "key"})
+                @UniqueConstraint(name = "uk_org_attr", columnNames = {"organization_id", "attr_key"})
         },
         indexes = {
-                @Index(name = "idx_attrdef_tenant_category", columnList = "tenant_id, category"),
-                @Index(name = "idx_attrdef_tenant_datatype", columnList = "tenant_id, data_type")
+                @Index(name = "idx_org_category", columnList = "organization_id, category"),
+                @Index(name = "idx_org_datatype", columnList = "organization_id, data_type")
         }
 )
 @Getter
@@ -29,11 +28,11 @@ public class AttributeDefinition {
     @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(name = "tenant_id", nullable = false)
-    private Long tenantId;
+    @Column(name = "organization_id", nullable = false)
+    private Long organizationId;
 
-    @Column(name = "key", nullable = false, length = 120)
-    private String key;
+    @Column(name = "attr_key", nullable = false, length = 120)
+    private String attrKey;
 
     @Column(name = "label", nullable = false, length = 150)
     private String label;
@@ -52,15 +51,14 @@ public class AttributeDefinition {
     @Column(name = "is_required", nullable = false)
     private Boolean isRequired = false;
 
+    @Column(name = "is_searchable", nullable = false)
+    private Boolean isSearchable = false;
+
     @Column(name = "default_value_json", columnDefinition = "json")
     private String defaultValueJson;
 
     @Column(name = "validation_json", columnDefinition = "json")
     private String validationJson;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "visibility", nullable = false)
-    private Visibility visibility = Visibility.all;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -82,16 +80,11 @@ public class AttributeDefinition {
         text,
         number,
         decimal,
+        boolean_,  // 'boolean' is a reserved keyword in Java
         date,
         datetime,
         json,
         single_select,
         multi_select
-        }
-
-    public enum Visibility {
-        all,
-        internal_only
     }
 }
-

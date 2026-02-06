@@ -1,6 +1,5 @@
 package com.aigreentick.services.contacts.entity;
 
-
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,15 +14,16 @@ import java.time.LocalDateTime;
         name = "contact_attribute_values",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_cav_contact_attr",
-                        columnNames = {"tenant_id", "contact_id", "attribute_definition_id"}
+                        name = "uk_contact_attr",
+                        columnNames = {"contact_id", "attribute_definition_id"}
                 )
         },
         indexes = {
-                @Index(name = "idx_cav_contact", columnList = "tenant_id, contact_id"),
-                @Index(name = "idx_cav_attr_number", columnList = "tenant_id, attribute_definition_id, value_number"),
-                @Index(name = "idx_cav_attr_datetime", columnList = "tenant_id, attribute_definition_id, value_datetime")
-                // NOTE: prefix index on value_text(500) cannot be represented in JPA
+                @Index(name = "idx_attr_text", columnList = "attribute_definition_id, value_text"),
+                @Index(name = "idx_attr_number", columnList = "attribute_definition_id, value_number"),
+                @Index(name = "idx_attr_date", columnList = "attribute_definition_id, value_date"),
+                @Index(name = "idx_attr_datetime", columnList = "attribute_definition_id, value_datetime"),
+                @Index(name = "idx_contact", columnList = "contact_id")
         }
 )
 @Getter
@@ -34,9 +34,6 @@ public class ContactAttributeValue {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
     private Long id;
-
-    @Column(name = "tenant_id", nullable = false)
-    private Long tenantId;
 
     @Column(name = "contact_id", nullable = false)
     private Long contactId;
@@ -80,4 +77,3 @@ public class ContactAttributeValue {
         integration
     }
 }
-

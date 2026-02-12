@@ -23,9 +23,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * REST API Controller for Contact management
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/contacts")
@@ -36,22 +33,17 @@ public class ContactController {
     private final ContactImportService contactImportService;
     private final ContactExportService contactExportService;
 
-    // TODO: Get organization ID from security context (JWT token)
-    // For now, hardcoded for testing
-    private static final Long ORGANIZATION_ID = 1L;
-
     /**
      * Create new contact
-     * POST /api/v1/contacts
      */
     @PostMapping
     public ResponseEntity<Map<String, Object>> createContact(
-            @Valid @RequestBody ContactCreateRequest request
+            @Valid @RequestBody ContactCreateRequest request,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
     ) {
+        log.info("Creating contact: {} for org: {}", request.getName(), organizationId);
 
-        log.info("Creating contact: {}", request.getName());
-
-        ContactResponse contact = contactService.createContact(request, ORGANIZATION_ID);
+        ContactResponse contact = contactService.createContact(request, organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -63,14 +55,15 @@ public class ContactController {
 
     /**
      * Get contact by ID
-     * GET /api/v1/contacts/{id}
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getContactById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getContactById(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
+    ) {
+        log.info("Fetching contact: {} for org: {}", id, organizationId);
 
-        log.info("Fetching contact: {}", id);
-
-        ContactResponse contact = contactService.getContactById(id, ORGANIZATION_ID);
+        ContactResponse contact = contactService.getContactById(id, organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -80,26 +73,24 @@ public class ContactController {
     }
 
     /**
-     * List contacts with pagination and filters
-     * GET /api/v1/contacts?search=john&page=0&size=50&sortBy=name&sortDirection=ASC
+     * List contacts
      */
     @GetMapping
     public ResponseEntity<Map<String, Object>> listContacts(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String source,
-            @RequestParam(required = false) String tagIds, // Comma-separated: "1,2,3"
+            @RequestParam(required = false) String tagIds,
             @RequestParam(required = false) String attributeKey,
             @RequestParam(required = false) String attributeValue,
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "50") Integer size,
             @RequestParam(defaultValue = "updatedAt") String sortBy,
-            @RequestParam(defaultValue = "DESC") String sortDirection
+            @RequestParam(defaultValue = "DESC") String sortDirection,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
     ) {
+        log.info("Listing contacts for org: {}, page: {}, size: {}", organizationId, page, size);
 
-        log.info("Listing contacts - page: {}, size: {}, search: {}", page, size, search);
-
-        // Build search request
         ContactSearchRequest searchRequest = new ContactSearchRequest();
         searchRequest.setSearch(search);
         searchRequest.setPhone(phone);
@@ -111,7 +102,6 @@ public class ContactController {
         searchRequest.setSortBy(sortBy);
         searchRequest.setSortDirection(sortDirection);
 
-        // Parse tag IDs
         if (tagIds != null && !tagIds.trim().isEmpty()) {
             try {
                 java.util.List<Long> tagIdList = java.util.Arrays.stream(tagIds.split(","))
@@ -125,7 +115,7 @@ public class ContactController {
         }
 
         PageResponse<ContactListItemResponse> contacts =
-                contactService.listContacts(searchRequest, ORGANIZATION_ID);
+                contactService.listContacts(searchRequest, organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -136,17 +126,16 @@ public class ContactController {
 
     /**
      * Update contact
-     * PUT /api/v1/contacts/{id}
      */
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updateContact(
             @PathVariable Long id,
-            @Valid @RequestBody ContactUpdateRequest request
+            @Valid @RequestBody ContactUpdateRequest request,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
     ) {
+        log.info("Updating contact: {} for org: {}", id, organizationId);
 
-        log.info("Updating contact: {}", id);
-
-        ContactResponse contact = contactService.updateContact(id, request, ORGANIZATION_ID);
+        ContactResponse contact = contactService.updateContact(id, request, organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -158,14 +147,15 @@ public class ContactController {
 
     /**
      * Delete contact
-     * DELETE /api/v1/contacts/{id}
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteContact(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deleteContact(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
+    ) {
+        log.info("Deleting contact: {} for org: {}", id, organizationId);
 
-        log.info("Deleting contact: {}", id);
-
-        contactService.deleteContact(id, ORGANIZATION_ID);
+        contactService.deleteContact(id, organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -175,27 +165,24 @@ public class ContactController {
     }
 
     /**
-     * Import contacts from CSV
-     * POST /api/v1/contacts/import
+     * Import contacts
      */
     @PostMapping("/import")
     public ResponseEntity<Map<String, Object>> importContacts(
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "true") Boolean updateExisting,
-            @RequestParam(defaultValue = "true") Boolean createNewAttributes
+            @RequestParam(defaultValue = "true") Boolean createNewAttributes,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
     ) {
-
-        log.info("Importing contacts from file: {}", file.getOriginalFilename());
+        log.info("Importing contacts for org: {} from file: {}", organizationId, file.getOriginalFilename());
 
         try {
-            // Parse CSV file
             ContactImportRequest request = CSVUtil.parseCSV(file);
             request.setUpdateExisting(updateExisting);
             request.setCreateNewAttributes(createNewAttributes);
 
-            // Import
             ContactImportResponse importResponse =
-                    contactImportService.importContacts(request, ORGANIZATION_ID);
+                    contactImportService.importContacts(request, organizationId);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -216,15 +203,15 @@ public class ContactController {
     }
 
     /**
-     * Export contacts to CSV
-     * GET /api/v1/contacts/export
+     * Export contacts
      */
     @GetMapping("/export")
-    public ResponseEntity<Resource> exportContacts() {
+    public ResponseEntity<Resource> exportContacts(
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
+    ) {
+        log.info("Exporting contacts for org: {}", organizationId);
 
-        log.info("Exporting contacts to CSV");
-
-        String csv = contactExportService.exportContactsToCSV(ORGANIZATION_ID);
+        String csv = contactExportService.exportContactsToCSV(organizationId);
 
         ByteArrayResource resource = new ByteArrayResource(csv.getBytes(StandardCharsets.UTF_8));
 
@@ -240,12 +227,10 @@ public class ContactController {
     }
 
     /**
-     * Download sample CSV template
-     * GET /api/v1/contacts/sample-csv
+     * Download sample CSV
      */
     @GetMapping("/sample-csv")
     public ResponseEntity<Resource> downloadSampleCSV() {
-
         log.info("Downloading sample CSV");
 
         String csv = CSVUtil.generateSampleCSV();
@@ -260,18 +245,17 @@ public class ContactController {
     }
 
     /**
-     * Search contacts (advanced)
-     * POST /api/v1/contacts/search
+     * Advanced search
      */
     @PostMapping("/search")
     public ResponseEntity<Map<String, Object>> searchContacts(
-            @Valid @RequestBody ContactSearchRequest searchRequest
+            @Valid @RequestBody ContactSearchRequest searchRequest,
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
     ) {
-
-        log.info("Searching contacts with filters");
+        log.info("Searching contacts for org: {}", organizationId);
 
         PageResponse<ContactListItemResponse> contacts =
-                contactService.listContacts(searchRequest, ORGANIZATION_ID);
+                contactService.listContacts(searchRequest, organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -282,12 +266,14 @@ public class ContactController {
 
     /**
      * Get contact count
-     * GET /api/v1/contacts/count
      */
     @GetMapping("/count")
-    public ResponseEntity<Map<String, Object>> getContactCount() {
+    public ResponseEntity<Map<String, Object>> getContactCount(
+            @RequestHeader(value = "X-Organization-ID", required = true) Long organizationId
+    ) {
+        log.info("Getting contact count for org: {}", organizationId);
 
-        long count = contactService.getContactCount(ORGANIZATION_ID);
+        long count = contactService.getContactCount(organizationId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);

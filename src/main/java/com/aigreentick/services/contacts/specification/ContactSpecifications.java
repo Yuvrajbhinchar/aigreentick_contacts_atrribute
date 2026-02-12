@@ -92,6 +92,7 @@ public class ContactSpecifications {
 
     /**
      * Filter by tag IDs
+     * FIXED: Use subquery instead of join since Contact entity doesn't have tagAssignments relationship
      */
     public static Specification<Contact> hasTags(List<Long> tagIds) {
         return (root, query, criteriaBuilder) -> {
@@ -99,11 +100,19 @@ public class ContactSpecifications {
                 return criteriaBuilder.conjunction();
             }
 
-            // Join with tag assignments
-            Join<Contact, ContactTagAssignment> tagJoin = root.join("tagAssignments", JoinType.INNER);
+            // Use subquery since Contact doesn't have a direct relationship to ContactTagAssignment
+            Subquery<Long> subquery = query.subquery(Long.class);
+            Root<ContactTagAssignment> tagAssignmentRoot = subquery.from(ContactTagAssignment.class);
 
-            // Contact must have at least one of the specified tags
-            return tagJoin.get("tagId").in(tagIds);
+            subquery.select(tagAssignmentRoot.get("contactId"))
+                    .where(
+                            criteriaBuilder.and(
+                                    criteriaBuilder.equal(tagAssignmentRoot.get("contactId"), root.get("id")),
+                                    tagAssignmentRoot.get("tagId").in(tagIds)
+                            )
+                    );
+
+            return criteriaBuilder.exists(subquery);
         };
     }
 

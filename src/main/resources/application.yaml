@@ -1,6 +1,6 @@
 spring:
   application:
-    name: contactsspring.application.name=contacts
+    name: contacts
 
   datasource:
     url: jdbc:mysql://localhost:3306/apargo_wa_messaging?serverTimezone=UTC&useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useLocalSessionState=true&rewriteBatchedStatements=true&cacheServerConfiguration=true&cacheResultSetMetadata=true&maintainTimeStats=false
@@ -8,11 +8,55 @@ spring:
     password: yuvraj@3933
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-    jpa:
+    # Connection pool settings (HikariCP)
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    database-platform: org.hibernate.dialect.MySQLDialect
+    show-sql: false
+    open-in-view: false
+
+    # Performance optimizations
+    properties:
       hibernate:
-        ddl-auto: validate
-        naming:
-          physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-      database-platform: org.hibernate.dialect.MySQLDialect
-      show-sql: false
-      open-in-view: false
+        jdbc:
+          batch_size: 50
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+        format_sql: false
+        use_sql_comments: false
+
+  # File upload settings (for CSV import)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+      enabled: true
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.aigreentick.services.contacts: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Server
+server:
+  port: 8080
+  compression:
+    enabled: true

@@ -1,5 +1,6 @@
 package com.aigreentick.services.contacts.entity;
 
+import com.aigreentick.services.contacts.converter.SourceConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -37,9 +38,10 @@ public class Contact {
     @Column(name = "display_name", length = 150)
     private String displayName;
 
-    @Enumerated(EnumType.STRING)
+    // UPDATED: Use custom converter
+    @Convert(converter = SourceConverter.class)
     @Column(name = "source", nullable = false)
-    private Source source = Source.manual;
+    private Source source = Source.MANUAL;
 
     @Column(name = "first_seen_at", nullable = false)
     private LocalDateTime firstSeenAt = LocalDateTime.now();
@@ -55,11 +57,11 @@ public class Contact {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // -------- ENUM (must match DB exactly) --------
+    // -------- ENUM (UPDATED: IMPORT instead of import_) --------
     public enum Source {
-        manual,
-        import_,  // 'import' is a reserved keyword in Java
-        integration,
-        inbound
+        MANUAL,      // → "manual" in DB
+        IMPORT,      // → "import" in DB (this was the problem!)
+        INTEGRATION, // → "integration" in DB
+        INBOUND      // → "inbound" in DB
     }
 }

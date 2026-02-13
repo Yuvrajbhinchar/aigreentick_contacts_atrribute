@@ -59,7 +59,7 @@ public class ContactService {
         contact.setWaPhoneE164(e164Phone);
         contact.setWaId(PhoneNumberUtil.generateWhatsAppId(e164Phone));
         contact.setDisplayName(request.getName());
-        contact.setSource(Contact.Source.manual);
+        contact.setSource(Contact.Source.MANUAL);
         contact.setFirstSeenAt(LocalDateTime.now());
 
         contact = contactRepository.save(contact);

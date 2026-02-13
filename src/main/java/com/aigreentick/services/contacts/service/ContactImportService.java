@@ -122,7 +122,7 @@ public class ContactImportService {
                     contact.setWaPhoneE164(e164Phone);
                     contact.setWaId(PhoneNumberUtil.generateWhatsAppId(e164Phone));
                     contact.setDisplayName(item.getName());
-                    contact.setSource(Contact.Source.import_);
+                    contact.setSource(Contact.Source.IMPORT);
                     contact.setFirstSeenAt(LocalDateTime.now());
 
                     contact = contactRepository.save(contact);

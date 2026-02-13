@@ -92,6 +92,7 @@ public class ContactMapper {
                 .lastSeenAt(contact.getLastSeenAt())
                 .createdAt(contact.getCreatedAt())
                 .updatedAt(contact.getUpdatedAt())
+                .source(contact.getSource().name().toLowerCase())
                 .build();
     }
 
@@ -151,6 +152,7 @@ public class ContactMapper {
                 .lastSeenAt(contact.getLastSeenAt())
                 .createdAt(contact.getCreatedAt())
                 .updatedAt(contact.getUpdatedAt())
+                .source(contact.getSource().name().toLowerCase())
                 .build();
     }
 

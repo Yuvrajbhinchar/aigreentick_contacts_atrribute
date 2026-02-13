@@ -81,7 +81,7 @@ public class ContactSpecifications {
 
     /**
      * Filter by source
-     * FIXED: Handle source string to enum conversion properly
+     * UPDATED: Handles conversion between Java (IMPORT) and DB (import)
      */
     public static Specification<Contact> hasSource(String source) {
         return (root, query, criteriaBuilder) -> {
@@ -90,9 +90,8 @@ public class ContactSpecifications {
             }
 
             try {
-                // Map "import" to "import_" since import is reserved keyword
-                String enumValue = source.equals("import") ? "import_" : source;
-                Contact.Source sourceEnum = Contact.Source.valueOf(enumValue);
+                // Convert input to uppercase to match Java enum
+                Contact.Source sourceEnum = Contact.Source.valueOf(source.toUpperCase());
                 return criteriaBuilder.equal(root.get("source"), sourceEnum);
             } catch (IllegalArgumentException e) {
                 // Invalid source value, return no results

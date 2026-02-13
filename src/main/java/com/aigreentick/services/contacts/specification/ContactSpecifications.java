@@ -1,5 +1,6 @@
 package com.aigreentick.services.contacts.specification;
 
+import com.aigreentick.services.contacts.entity.AttributeDefinition;
 import com.aigreentick.services.contacts.entity.Contact;
 import com.aigreentick.services.contacts.entity.ContactAttributeValue;
 import com.aigreentick.services.contacts.entity.ContactTagAssignment;
@@ -11,7 +12,7 @@ import java.util.List;
 
 /**
  * JPA Specifications for dynamic Contact queries
- * Allows building complex, composable queries
+ * FIXED VERSION - Handles missing entity relationships properly
  */
 public class ContactSpecifications {
 
@@ -80,19 +81,29 @@ public class ContactSpecifications {
 
     /**
      * Filter by source
+     * FIXED: Handle source string to enum conversion properly
      */
     public static Specification<Contact> hasSource(String source) {
         return (root, query, criteriaBuilder) -> {
             if (source == null || source.trim().isEmpty()) {
                 return criteriaBuilder.conjunction();
             }
-            return criteriaBuilder.equal(root.get("source"), Contact.Source.valueOf(source));
+
+            try {
+                // Map "import" to "import_" since import is reserved keyword
+                String enumValue = source.equals("import") ? "import_" : source;
+                Contact.Source sourceEnum = Contact.Source.valueOf(enumValue);
+                return criteriaBuilder.equal(root.get("source"), sourceEnum);
+            } catch (IllegalArgumentException e) {
+                // Invalid source value, return no results
+                return criteriaBuilder.disjunction();
+            }
         };
     }
 
     /**
      * Filter by tag IDs
-     * FIXED: Use subquery instead of join since Contact entity doesn't have tagAssignments relationship
+     * FIXED: Proper subquery without relationship dependency
      */
     public static Specification<Contact> hasTags(List<Long> tagIds) {
         return (root, query, criteriaBuilder) -> {
@@ -100,15 +111,15 @@ public class ContactSpecifications {
                 return criteriaBuilder.conjunction();
             }
 
-            // Use subquery since Contact doesn't have a direct relationship to ContactTagAssignment
+            // Subquery to find contacts with these tags
             Subquery<Long> subquery = query.subquery(Long.class);
-            Root<ContactTagAssignment> tagAssignmentRoot = subquery.from(ContactTagAssignment.class);
+            Root<ContactTagAssignment> tagRoot = subquery.from(ContactTagAssignment.class);
 
-            subquery.select(tagAssignmentRoot.get("contactId"))
+            subquery.select(tagRoot.get("contactId"))
                     .where(
                             criteriaBuilder.and(
-                                    criteriaBuilder.equal(tagAssignmentRoot.get("contactId"), root.get("id")),
-                                    tagAssignmentRoot.get("tagId").in(tagIds)
+                                    criteriaBuilder.equal(tagRoot.get("contactId"), root.get("id")),
+                                    tagRoot.get("tagId").in(tagIds)
                             )
                     );
 
@@ -118,6 +129,7 @@ public class ContactSpecifications {
 
     /**
      * Filter by attribute key and value
+     * FIXED: Removed broken join, use manual correlation instead
      */
     public static Specification<Contact> hasAttribute(String attributeKey, String attributeValue) {
         return (root, query, criteriaBuilder) -> {
@@ -125,35 +137,39 @@ public class ContactSpecifications {
                 return criteriaBuilder.conjunction();
             }
 
-            // Subquery to check if contact has this attribute
+            // Subquery to find contacts with this attribute
             Subquery<Long> subquery = query.subquery(Long.class);
-            Root<ContactAttributeValue> attrRoot = subquery.from(ContactAttributeValue.class);
+            Root<ContactAttributeValue> attrValueRoot = subquery.from(ContactAttributeValue.class);
+            Root<AttributeDefinition> attrDefRoot = query.from(AttributeDefinition.class);
 
-            subquery.select(attrRoot.get("contactId"));
-
-            Predicate contactIdMatch = criteriaBuilder.equal(
-                    attrRoot.get("contactId"),
+            // Build predicates
+            Predicate contactMatch = criteriaBuilder.equal(
+                    attrValueRoot.get("contactId"),
                     root.get("id")
             );
 
-            // Join with attribute definition to check key
-            Join<ContactAttributeValue, com.aigreentick.services.contacts.entity.AttributeDefinition> attrDefJoin =
-                    attrRoot.join("attributeDefinition");
+            Predicate defIdMatch = criteriaBuilder.equal(
+                    attrValueRoot.get("attributeDefinitionId"),
+                    attrDefRoot.get("id")
+            );
 
             Predicate keyMatch = criteriaBuilder.equal(
-                    attrDefJoin.get("attrKey"),
+                    attrDefRoot.get("attrKey"),
                     attributeKey
             );
 
-            Predicate valuePredicate = criteriaBuilder.conjunction();
+            Predicate valuePredicate;
             if (attributeValue != null && !attributeValue.trim().isEmpty()) {
                 valuePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(attrRoot.get("valueText")),
+                        criteriaBuilder.lower(attrValueRoot.get("valueText")),
                         "%" + attributeValue.toLowerCase() + "%"
                 );
+            } else {
+                valuePredicate = criteriaBuilder.conjunction();
             }
 
-            subquery.where(contactIdMatch, keyMatch, valuePredicate);
+            subquery.select(attrValueRoot.get("contactId"))
+                    .where(contactMatch, defIdMatch, keyMatch, valuePredicate);
 
             return criteriaBuilder.exists(subquery);
         };
@@ -205,8 +221,8 @@ public class ContactSpecifications {
             Subquery<Long> subquery = query.subquery(Long.class);
             Root<ContactTagAssignment> tagRoot = subquery.from(ContactTagAssignment.class);
 
-            subquery.select(tagRoot.get("contactId"));
-            subquery.where(criteriaBuilder.equal(tagRoot.get("contactId"), root.get("id")));
+            subquery.select(tagRoot.get("contactId"))
+                    .where(criteriaBuilder.equal(tagRoot.get("contactId"), root.get("id")));
 
             return criteriaBuilder.not(criteriaBuilder.exists(subquery));
         };
@@ -220,8 +236,8 @@ public class ContactSpecifications {
             Subquery<Long> subquery = query.subquery(Long.class);
             Root<ContactAttributeValue> attrRoot = subquery.from(ContactAttributeValue.class);
 
-            subquery.select(attrRoot.get("contactId"));
-            subquery.where(criteriaBuilder.equal(attrRoot.get("contactId"), root.get("id")));
+            subquery.select(attrRoot.get("contactId"))
+                    .where(criteriaBuilder.equal(attrRoot.get("contactId"), root.get("id")));
 
             return criteriaBuilder.not(criteriaBuilder.exists(subquery));
         };

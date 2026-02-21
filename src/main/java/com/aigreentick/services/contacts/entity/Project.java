@@ -59,10 +59,10 @@ public class Project {
     @Column(name = "visibility", nullable = false)
     private Visibility visibility = Visibility.private_;
 
-    @Column(name = "settings", columnDefinition = "json DEFAULT '{}'")
+    @Column(name = "settings", columnDefinition = "json")
     private String settings = "{}";
 
-    @Column(name = "metadata", columnDefinition = "json DEFAULT '{}'")
+    @Column(name = "metadata", columnDefinition = "json")
     private String metadata = "{}";
 
     @Column(name = "created_by", nullable = false)

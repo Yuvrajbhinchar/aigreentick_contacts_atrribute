@@ -41,7 +41,7 @@ public class ContactAttributeValue {
     @Column(name = "attribute_definition_id", nullable = false)
     private Long attributeDefinitionId;
 
-    @Column(name = "value_text", length = 1024)
+    @Column(name = "value_text", length = 700)
     private String valueText;
 
     @Column(name = "value_number")

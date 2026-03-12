@@ -96,7 +96,7 @@ public class ContactExportService {
     }
 
     /**
-     * Extract value from ContactAttributeValue
+     * Extracts value from ContactAttributeValue
      */
     private String extractAttributeValue(ContactAttributeValue attr) {
         if (attr.getValueText() != null && !attr.getValueText().isEmpty()) {

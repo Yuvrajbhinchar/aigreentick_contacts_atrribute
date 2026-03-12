@@ -22,7 +22,7 @@ public class ContactBulkAttributeController {
     private final ContactBulkAttributeService contactBulkAttributeService;
 
     /**
-     * Bulk fetch contact attributes by phone numbers within a project.
+     * Bulk fetch contact attributes by phone numbers within a project..
      *
      * - If a phone number does not exist → contact is auto-created and linked to the project.
      * - If a phone number exists but is not in the project → it is linked automatically.

@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 /**
  * Service for bulk fetching contact attributes by phone numbers within a project.
  *
- * Flow:
+ * Flow steps:
  *  1. Normalize each phone → E.164
  *  2. Find existing contacts in org by phone
  *  3. Auto-create missing contacts + add them to project_contacts

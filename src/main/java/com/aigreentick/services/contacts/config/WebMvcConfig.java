@@ -15,6 +15,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(organizationInterceptor)
-                .addPathPatterns("/api/**");
+                .addPathPatterns("/api/**")
+                // Internal endpoints read organizationId directly from the header in each
+                // controller method — they do NOT rely on the ThreadLocal set by this
+                // interceptor, so exclude them to avoid redundant processing.
+                .excludePathPatterns("/internal/**");
     }
 }

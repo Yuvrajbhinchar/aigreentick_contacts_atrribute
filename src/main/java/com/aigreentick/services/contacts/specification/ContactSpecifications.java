@@ -10,235 +10,137 @@ import org.springframework.data.jpa.domain.Specification;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * JPA Specifications for dynamic Contact queries
- * FIXED VERSION - Handles missing entity relationships properly
- */
 public class ContactSpecifications {
 
-    /**
-     * Filter by organization (ALWAYS use this for multi-tenancy)
-     */
     public static Specification<Contact> belongsToOrganization(Long organizationId) {
-        return (root, query, criteriaBuilder) ->
-                criteriaBuilder.equal(root.get("organizationId"), organizationId);
+        return (root, query, cb) ->
+                cb.equal(root.get("organizationId"), organizationId);
     }
 
-    /**
-     * Search by name (case-insensitive, partial match)
-     */
     public static Specification<Contact> hasNameLike(String name) {
-        return (root, query, criteriaBuilder) -> {
-            if (name == null || name.trim().isEmpty()) {
-                return criteriaBuilder.conjunction();
-            }
-            return criteriaBuilder.like(
-                    criteriaBuilder.lower(root.get("displayName")),
-                    "%" + name.toLowerCase() + "%"
-            );
+        return (root, query, cb) -> {
+            if (name == null || name.trim().isEmpty()) return cb.conjunction();
+            return cb.like(cb.lower(root.get("displayName")), "%" + name.toLowerCase() + "%");
         };
     }
 
-    /**
-     * Search by phone number (partial match)
-     */
     public static Specification<Contact> hasPhoneLike(String phone) {
-        return (root, query, criteriaBuilder) -> {
-            if (phone == null || phone.trim().isEmpty()) {
-                return criteriaBuilder.conjunction();
-            }
-            return criteriaBuilder.like(
-                    root.get("waPhoneE164"),
-                    "%" + phone + "%"
-            );
+        return (root, query, cb) -> {
+            if (phone == null || phone.trim().isEmpty()) return cb.conjunction();
+            return cb.like(root.get("waPhoneE164"), "%" + phone + "%");
         };
     }
 
-    /**
-     * Search by name OR phone (combined search)
-     */
     public static Specification<Contact> searchByNameOrPhone(String searchTerm) {
-        return (root, query, criteriaBuilder) -> {
-            if (searchTerm == null || searchTerm.trim().isEmpty()) {
-                return criteriaBuilder.conjunction();
-            }
-
-            String likePattern = "%" + searchTerm.toLowerCase() + "%";
-
-            Predicate namePredicate = criteriaBuilder.like(
-                    criteriaBuilder.lower(root.get("displayName")),
-                    likePattern
+        return (root, query, cb) -> {
+            if (searchTerm == null || searchTerm.trim().isEmpty()) return cb.conjunction();
+            String pattern = "%" + searchTerm.toLowerCase() + "%";
+            return cb.or(
+                    cb.like(cb.lower(root.get("displayName")), pattern),
+                    cb.like(root.get("waPhoneE164"), pattern)
             );
-
-            Predicate phonePredicate = criteriaBuilder.like(
-                    root.get("waPhoneE164"),
-                    likePattern
-            );
-
-            return criteriaBuilder.or(namePredicate, phonePredicate);
         };
     }
 
-    /**
-     * Filter by source
-     * UPDATED: Handles conversion between Java (IMPORT) and DB (import)
-     */
     public static Specification<Contact> hasSource(String source) {
-        return (root, query, criteriaBuilder) -> {
-            if (source == null || source.trim().isEmpty()) {
-                return criteriaBuilder.conjunction();
-            }
-
+        return (root, query, cb) -> {
+            if (source == null || source.trim().isEmpty()) return cb.conjunction();
             try {
-                // Convert input to uppercase to match Java enum
                 Contact.Source sourceEnum = Contact.Source.valueOf(source.toUpperCase());
-                return criteriaBuilder.equal(root.get("source"), sourceEnum);
+                return cb.equal(root.get("source"), sourceEnum);
             } catch (IllegalArgumentException e) {
-                // Invalid source value, return no results
-                return criteriaBuilder.disjunction();
+                return cb.disjunction();
             }
         };
     }
 
-    /**
-     * Filter by tag IDs
-     * FIXED: Proper subquery without relationship dependency
-     */
     public static Specification<Contact> hasTags(List<Long> tagIds) {
-        return (root, query, criteriaBuilder) -> {
-            if (tagIds == null || tagIds.isEmpty()) {
-                return criteriaBuilder.conjunction();
-            }
+        return (root, query, cb) -> {
+            if (tagIds == null || tagIds.isEmpty()) return cb.conjunction();
 
-            // Subquery to find contacts with these tags
             Subquery<Long> subquery = query.subquery(Long.class);
             Root<ContactTagAssignment> tagRoot = subquery.from(ContactTagAssignment.class);
-
             subquery.select(tagRoot.get("contactId"))
                     .where(
-                            criteriaBuilder.and(
-                                    criteriaBuilder.equal(tagRoot.get("contactId"), root.get("id")),
-                                    tagRoot.get("tagId").in(tagIds)
-                            )
+                            cb.equal(tagRoot.get("contactId"), root.get("id")),
+                            tagRoot.get("tagId").in(tagIds)
                     );
-
-            return criteriaBuilder.exists(subquery);
+            return cb.exists(subquery);
         };
     }
 
     /**
-     * Filter by attribute key and value
-     * FIXED: Removed broken join, use manual correlation instead
+     * FIX: The original used query.from(AttributeDefinition.class) which added a cross join
+     * to the root query causing a Cartesian product. Both roots must live inside the subquery.
      */
     public static Specification<Contact> hasAttribute(String attributeKey, String attributeValue) {
-        return (root, query, criteriaBuilder) -> {
-            if (attributeKey == null || attributeKey.trim().isEmpty()) {
-                return criteriaBuilder.conjunction();
-            }
+        return (root, query, cb) -> {
+            if (attributeKey == null || attributeKey.trim().isEmpty()) return cb.conjunction();
 
-            // Subquery to find contacts with this attribute
+            // Outer subquery: find contact IDs that have this attribute key (+ optional value)
             Subquery<Long> subquery = query.subquery(Long.class);
-            Root<ContactAttributeValue> attrValueRoot = subquery.from(ContactAttributeValue.class);
-            Root<AttributeDefinition> attrDefRoot = query.from(AttributeDefinition.class);
+            Root<ContactAttributeValue> valueRoot = subquery.from(ContactAttributeValue.class);
 
-            // Build predicates
-            Predicate contactMatch = criteriaBuilder.equal(
-                    attrValueRoot.get("contactId"),
-                    root.get("id")
-            );
+            // Inner correlated subquery: find the attribute definition ID for the given key
+            Subquery<Long> defSubquery = subquery.subquery(Long.class);
+            Root<AttributeDefinition> defRoot = defSubquery.from(AttributeDefinition.class);
+            defSubquery.select(defRoot.get("id"))
+                    .where(cb.equal(defRoot.get("attrKey"), attributeKey));
 
-            Predicate defIdMatch = criteriaBuilder.equal(
-                    attrValueRoot.get("attributeDefinitionId"),
-                    attrDefRoot.get("id")
-            );
+            // Predicates for the outer subquery
+            Predicate contactMatch = cb.equal(valueRoot.get("contactId"), root.get("id"));
+            Predicate defMatch = valueRoot.get("attributeDefinitionId").in(defSubquery);
 
-            Predicate keyMatch = criteriaBuilder.equal(
-                    attrDefRoot.get("attrKey"),
-                    attributeKey
-            );
+            Predicate valuePredicate = (attributeValue != null && !attributeValue.trim().isEmpty())
+                    ? cb.like(cb.lower(valueRoot.get("valueText")), "%" + attributeValue.toLowerCase() + "%")
+                    : cb.conjunction();
 
-            Predicate valuePredicate;
-            if (attributeValue != null && !attributeValue.trim().isEmpty()) {
-                valuePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(attrValueRoot.get("valueText")),
-                        "%" + attributeValue.toLowerCase() + "%"
-                );
-            } else {
-                valuePredicate = criteriaBuilder.conjunction();
-            }
+            subquery.select(valueRoot.get("contactId"))
+                    .where(contactMatch, defMatch, valuePredicate);
 
-            subquery.select(attrValueRoot.get("contactId"))
-                    .where(contactMatch, defIdMatch, keyMatch, valuePredicate);
-
-            return criteriaBuilder.exists(subquery);
+            return cb.exists(subquery);
         };
     }
 
-    /**
-     * Filter by created date range
-     */
     public static Specification<Contact> createdBetween(LocalDateTime startDate, LocalDateTime endDate) {
-        return (root, query, criteriaBuilder) -> {
-            if (startDate == null && endDate == null) {
-                return criteriaBuilder.conjunction();
-            }
-
-            if (startDate != null && endDate != null) {
-                return criteriaBuilder.between(root.get("createdAt"), startDate, endDate);
-            } else if (startDate != null) {
-                return criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), startDate);
-            } else {
-                return criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), endDate);
-            }
+        return (root, query, cb) -> {
+            if (startDate == null && endDate == null) return cb.conjunction();
+            if (startDate != null && endDate != null)
+                return cb.between(root.get("createdAt"), startDate, endDate);
+            if (startDate != null)
+                return cb.greaterThanOrEqualTo(root.get("createdAt"), startDate);
+            return cb.lessThanOrEqualTo(root.get("createdAt"), endDate);
         };
     }
 
-    /**
-     * Filter by last seen date range
-     */
     public static Specification<Contact> lastSeenBetween(LocalDateTime startDate, LocalDateTime endDate) {
-        return (root, query, criteriaBuilder) -> {
-            if (startDate == null && endDate == null) {
-                return criteriaBuilder.conjunction();
-            }
-
-            if (startDate != null && endDate != null) {
-                return criteriaBuilder.between(root.get("lastSeenAt"), startDate, endDate);
-            } else if (startDate != null) {
-                return criteriaBuilder.greaterThanOrEqualTo(root.get("lastSeenAt"), startDate);
-            } else {
-                return criteriaBuilder.lessThanOrEqualTo(root.get("lastSeenAt"), endDate);
-            }
+        return (root, query, cb) -> {
+            if (startDate == null && endDate == null) return cb.conjunction();
+            if (startDate != null && endDate != null)
+                return cb.between(root.get("lastSeenAt"), startDate, endDate);
+            if (startDate != null)
+                return cb.greaterThanOrEqualTo(root.get("lastSeenAt"), startDate);
+            return cb.lessThanOrEqualTo(root.get("lastSeenAt"), endDate);
         };
     }
 
-    /**
-     * Filter contacts with no tags
-     */
     public static Specification<Contact> hasNoTags() {
-        return (root, query, criteriaBuilder) -> {
+        return (root, query, cb) -> {
             Subquery<Long> subquery = query.subquery(Long.class);
             Root<ContactTagAssignment> tagRoot = subquery.from(ContactTagAssignment.class);
-
             subquery.select(tagRoot.get("contactId"))
-                    .where(criteriaBuilder.equal(tagRoot.get("contactId"), root.get("id")));
-
-            return criteriaBuilder.not(criteriaBuilder.exists(subquery));
+                    .where(cb.equal(tagRoot.get("contactId"), root.get("id")));
+            return cb.not(cb.exists(subquery));
         };
     }
 
-    /**
-     * Filter contacts with no attributes
-     */
     public static Specification<Contact> hasNoAttributes() {
-        return (root, query, criteriaBuilder) -> {
+        return (root, query, cb) -> {
             Subquery<Long> subquery = query.subquery(Long.class);
             Root<ContactAttributeValue> attrRoot = subquery.from(ContactAttributeValue.class);
-
             subquery.select(attrRoot.get("contactId"))
-                    .where(criteriaBuilder.equal(attrRoot.get("contactId"), root.get("id")));
-
-            return criteriaBuilder.not(criteriaBuilder.exists(subquery));
+                    .where(cb.equal(attrRoot.get("contactId"), root.get("id")));
+            return cb.not(cb.exists(subquery));
         };
     }
 }

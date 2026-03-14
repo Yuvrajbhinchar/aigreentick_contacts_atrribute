@@ -11,16 +11,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Mapper for converting between Contact entities and DTOs
- */
 @Component
 @RequiredArgsConstructor
 public class ContactMapper {
 
     /**
-     * Convert Contact entity to full ContactResponse
-     * Used for detail view (GET /contacts/{id})
+     * Convert Contact entity to full ContactResponse.
+     * FIX: Removed duplicate source assignment (was set twice — once as uppercase, once lowercase).
      */
     public ContactResponse toResponse(
             Contact contact,
@@ -30,12 +27,9 @@ public class ContactMapper {
             List<ContactNote> notes,
             Map<Long, AttributeDefinition> attributeDefinitions
     ) {
-
-        // Map attributes
         List<ContactResponse.AttributeValueResponse> attributeResponses = attributes.stream()
                 .map(attr -> {
                     AttributeDefinition definition = attributeDefinitions.get(attr.getAttributeDefinitionId());
-
                     return ContactResponse.AttributeValueResponse.builder()
                             .id(attr.getId())
                             .key(definition != null ? definition.getAttrKey() : "unknown")
@@ -47,7 +41,6 @@ public class ContactMapper {
                 })
                 .collect(Collectors.toList());
 
-        // Map tags
         Map<Long, ContactTag> tagMap = tags.stream()
                 .collect(Collectors.toMap(ContactTag::getId, tag -> tag));
 
@@ -55,7 +48,6 @@ public class ContactMapper {
                 .map(assignment -> {
                     ContactTag tag = tagMap.get(assignment.getTagId());
                     if (tag == null) return null;
-
                     return ContactResponse.TagResponse.builder()
                             .id(tag.getId())
                             .name(tag.getName())
@@ -66,13 +58,11 @@ public class ContactMapper {
                 .filter(tag -> tag != null)
                 .collect(Collectors.toList());
 
-        // Map notes (recent 5)
         List<ContactResponse.NoteResponse> noteResponses = notes.stream()
-                .limit(5)
                 .map(note -> ContactResponse.NoteResponse.builder()
                         .id(note.getId())
                         .text(note.getNoteText())
-                        .createdByName("User-" + note.getCreatedBy()) // TODO: Get actual user name
+                        .createdByName(note.getCreatedBy() != null ? "User-" + note.getCreatedBy() : "System")
                         .visibility(note.getVisibility().name())
                         .createdAt(note.getCreatedAt())
                         .build())
@@ -83,22 +73,22 @@ public class ContactMapper {
                 .name(contact.getDisplayName())
                 .phoneNumber(contact.getWaPhoneE164())
                 .waId(contact.getWaId())
-                .source(contact.getSource().name())
+                // FIX: source is set only once, lowercase (was set twice — uppercase then overwritten by lowercase)
+                .source(contact.getSource().name().toLowerCase())
                 .attributes(attributeResponses)
                 .tags(tagResponses)
                 .recentNotes(noteResponses)
-                .projects(new ArrayList<>()) // TODO: Load project associations
+                .projects(new ArrayList<>())
                 .firstSeenAt(contact.getFirstSeenAt())
                 .lastSeenAt(contact.getLastSeenAt())
                 .createdAt(contact.getCreatedAt())
                 .updatedAt(contact.getUpdatedAt())
-                .source(contact.getSource().name().toLowerCase())
                 .build();
     }
 
     /**
-     * Convert Contact entity to lightweight ContactListItemResponse
-     * Used for list view (GET /contacts)
+     * Convert Contact entity to lightweight list DTO.
+     * FIX: Removed duplicate source assignment (same bug as toResponse).
      */
     public ContactListItemResponse toListItemResponse(
             Contact contact,
@@ -108,13 +98,10 @@ public class ContactMapper {
             Map<Long, AttributeDefinition> attributeDefinitions,
             long noteCount
     ) {
-
-        // Map attributes (simplified - just key-value)
         List<ContactListItemResponse.SimpleAttribute> simpleAttributes = attributes.stream()
-                .limit(5) // Only show first 5 attributes in list
+                .limit(5)
                 .map(attr -> {
                     AttributeDefinition definition = attributeDefinitions.get(attr.getAttributeDefinitionId());
-
                     return ContactListItemResponse.SimpleAttribute.builder()
                             .key(definition != null ? definition.getAttrKey() : "unknown")
                             .value(extractAttributeValue(attr))
@@ -122,7 +109,6 @@ public class ContactMapper {
                 })
                 .collect(Collectors.toList());
 
-        // Map tags (simplified)
         Map<Long, ContactTag> tagMap = tags.stream()
                 .collect(Collectors.toMap(ContactTag::getId, tag -> tag));
 
@@ -130,7 +116,6 @@ public class ContactMapper {
                 .map(assignment -> {
                     ContactTag tag = tagMap.get(assignment.getTagId());
                     if (tag == null) return null;
-
                     return ContactListItemResponse.SimpleTag.builder()
                             .id(tag.getId())
                             .name(tag.getName())
@@ -144,44 +129,26 @@ public class ContactMapper {
                 .id(contact.getId())
                 .name(contact.getDisplayName())
                 .phoneNumber(contact.getWaPhoneE164())
-                .source(contact.getSource().name())
+                // FIX: source is set only once, lowercase
+                .source(contact.getSource().name().toLowerCase())
                 .attributes(simpleAttributes)
                 .tags(simpleTags)
                 .noteCount((int) noteCount)
-                .projectCount(0) // TODO: Get actual project count
+                .projectCount(0)
                 .lastSeenAt(contact.getLastSeenAt())
                 .createdAt(contact.getCreatedAt())
                 .updatedAt(contact.getUpdatedAt())
-                .source(contact.getSource().name().toLowerCase())
                 .build();
     }
 
-    /**
-     * Extract value from ContactAttributeValue based on data type
-     */
     private String extractAttributeValue(ContactAttributeValue attr) {
-        // Priority: text > number > decimal > boolean > date > datetime
-        if (attr.getValueText() != null && !attr.getValueText().isEmpty()) {
-            return attr.getValueText();
-        }
-        if (attr.getValueNumber() != null) {
-            return attr.getValueNumber().toString();
-        }
-        if (attr.getValueDecimal() != null) {
-            return attr.getValueDecimal().toString();
-        }
-        if (attr.getValueBool() != null) {
-            return attr.getValueBool().toString();
-        }
-        if (attr.getValueDate() != null) {
-            return attr.getValueDate().toString();
-        }
-        if (attr.getValueDatetime() != null) {
-            return attr.getValueDatetime().toString();
-        }
-        if (attr.getValueJson() != null) {
-            return attr.getValueJson();
-        }
+        if (attr.getValueText() != null && !attr.getValueText().isEmpty()) return attr.getValueText();
+        if (attr.getValueNumber() != null) return attr.getValueNumber().toString();
+        if (attr.getValueDecimal() != null) return attr.getValueDecimal().toString();
+        if (attr.getValueBool() != null) return attr.getValueBool().toString();
+        if (attr.getValueDate() != null) return attr.getValueDate().toString();
+        if (attr.getValueDatetime() != null) return attr.getValueDatetime().toString();
+        if (attr.getValueJson() != null) return attr.getValueJson();
         return "";
     }
 }

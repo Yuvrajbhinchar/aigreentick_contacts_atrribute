@@ -19,154 +19,92 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    /**
-     * Handle validation errors from @Valid annotations
-     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
-
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            errors.put(fieldName, error.getDefaultMessage());
         });
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message("Validation failed")
-                .errors(errors)
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.warn("Validation error: {}", errors);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ErrorResponse.builder().success(false).message("Validation failed")
+                        .errors(errors).timestamp(LocalDateTime.now()).build());
     }
 
-    /**
-     * Handle constraint violations
-     */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
-
         Map<String, String> errors = new HashMap<>();
-        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
-            String propertyPath = violation.getPropertyPath().toString();
-            String message = violation.getMessage();
-            errors.put(propertyPath, message);
+        for (ConstraintViolation<?> v : ex.getConstraintViolations()) {
+            errors.put(v.getPropertyPath().toString(), v.getMessage());
         }
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message("Constraint violation")
-                .errors(errors)
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.warn("Constraint violation: {}", errors);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ErrorResponse.builder().success(false).message("Constraint violation")
+                        .errors(errors).timestamp(LocalDateTime.now()).build());
     }
 
-    /**
-     * Handle contact not found
-     */
     @ExceptionHandler(ContactNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleContactNotFound(ContactNotFoundException ex) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.warn("Contact not found: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ErrorResponse.builder().success(false).message(ex.getMessage())
+                        .timestamp(LocalDateTime.now()).build());
     }
 
-    /**
-     * Handle duplicate contact
-     */
     @ExceptionHandler(DuplicateContactException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateContact(DuplicateContactException ex) {
-
         Map<String, Object> data = new HashMap<>();
         data.put("phoneNumber", ex.getPhoneNumber());
         data.put("existingContactId", ex.getExistingContactId());
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message(ex.getMessage())
-                .data(data)
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        log.warn("Duplicate contact: phone={}, existingId={}",
-                ex.getPhoneNumber(), ex.getExistingContactId());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        log.warn("Duplicate contact: phone={}, existingId={}", ex.getPhoneNumber(), ex.getExistingContactId());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ErrorResponse.builder().success(false).message(ex.getMessage())
+                        .data(data).timestamp(LocalDateTime.now()).build());
     }
 
-    /**
-     * Handle invalid attribute
-     */
     @ExceptionHandler(InvalidAttributeException.class)
     public ResponseEntity<ErrorResponse> handleInvalidAttribute(InvalidAttributeException ex) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.warn("Invalid attribute: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ErrorResponse.builder().success(false).message(ex.getMessage())
+                        .timestamp(LocalDateTime.now()).build());
     }
 
-    /**
-     * Handle access denied
-     */
     @ExceptionHandler(ContactAccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(ContactAccessDeniedException ex) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.warn("Access denied: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                ErrorResponse.builder().success(false).message(ex.getMessage())
+                        .timestamp(LocalDateTime.now()).build());
     }
 
-    /**
-     * Handle invalid phone number
-     */
     @ExceptionHandler(InvalidPhoneNumberException.class)
     public ResponseEntity<ErrorResponse> handleInvalidPhoneNumber(InvalidPhoneNumberException ex) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.warn("Invalid phone number: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ErrorResponse.builder().success(false).message(ex.getMessage())
+                        .timestamp(LocalDateTime.now()).build());
     }
 
     /**
-     * Handle all other exceptions
+     * FIX: Added handler for TagNotFoundException, which is now thrown by assignTagsToContact()
+     * instead of InvalidAttributeException (which was semantically wrong for a missing tag).
      */
+    @ExceptionHandler(TagNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTagNotFound(TagNotFoundException ex) {
+        log.warn("Tag not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ErrorResponse.builder().success(false).message(ex.getMessage())
+                        .timestamp(LocalDateTime.now()).build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .success(false)
-                .message("An unexpected error occurred")
-                .timestamp(LocalDateTime.now())
-                .build();
-
         log.error("Unexpected error", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ErrorResponse.builder().success(false).message("An unexpected error occurred")
+                        .timestamp(LocalDateTime.now()).build());
     }
 
     @Data

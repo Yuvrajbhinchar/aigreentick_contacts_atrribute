@@ -15,10 +15,8 @@ public class ContactImportRequest {
     @Valid
     private List<ContactImportItem> contacts;
 
-    // Whether to update existing contacts or skip them
     private Boolean updateExisting = true;
 
-    // Whether to create attribute definitions for new attributes
     private Boolean createNewAttributes = true;
 
     @Data
@@ -28,10 +26,18 @@ public class ContactImportRequest {
         private String name;
 
         @NotBlank(message = "Phone number is required")
-        @Pattern(regexp = "^[0-9]{10}$", message = "Phone must be 10 digits")
+        /**
+         * FIX: Original pattern accepted ONLY 10-digit numbers ("^[0-9]{10}$"), while
+         * ContactCreateRequest and ContactUpdateRequest both accepted 10-digit OR E.164.
+         * This caused valid international numbers to be rejected at import but accepted
+         * everywhere else. The pattern now matches both formats consistently.
+         */
+        @Pattern(
+                regexp = "^[0-9]{10}$|^\\+[1-9]\\d{1,14}$",
+                message = "Phone number must be either 10 digits or valid E.164 format"
+        )
         private String phoneNumber;
 
-        // Any additional columns from CSV
         private Map<String, String> attributes;
     }
 }

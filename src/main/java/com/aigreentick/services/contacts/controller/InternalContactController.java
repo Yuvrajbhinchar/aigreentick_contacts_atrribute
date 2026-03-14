@@ -14,49 +14,58 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Internal endpoints consumed by the Messaging Service during broadcast campaign preparation.
+ * Internal endpoints for the Messaging Service (broadcast campaign preparation).
  *
- * These routes are NOT exposed publicly — they live under /internal/** which should be
- * network-restricted (e.g. only reachable from within the cluster / VPC).
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │  SPEC CONSTRAINTS                                                       │
+ * │  • Phone numbers: country code included, NO '+' prefix                  │
+ * │    e.g. "919876543210" not "+919876543210"                              │
+ * │  • All endpoints internal only — restrict at network/gateway level      │
+ * │  • Target p99 < 2 s (synchronous during campaign prep)                  │
+ * │  • 4xx → campaign marked FAILED                                         │
+ * │  • 5xx → infrastructure failure, caller retries / alerts               │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * They intentionally bypass the public /api/v1 versioning and do NOT go through
- * OrganizationInterceptor's ThreadLocal; the organizationId is read directly from the
- * X-Organization-ID header in each method.
+ * ─────────────────────────────────────────────────────────────────────────
+ * POST /internal/contacts/resolve
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * 1. POST /internal/contacts/resolve
- *    Resolve phone numbers → contact IDs.  Omits unknown phones — no auto-create.
+ *   Request:
+ *     { "projectId": 101, "phoneNumbers": ["919876543210", "918765432109"] }
  *
- *    Request:
- *      { "projectId": 101, "phoneNumbers": ["919876543210", "918765432109"] }
+ *   Response 200:
+ *     { "contacts": { "919876543210": 4001, "918765432109": 4002 } }
  *
- *    Response 200:
- *      { "contacts": { "919876543210": 4001, "918765432109": 4002 } }
+ *   Rules:
+ *     - Pure lookup — NO contacts are created or modified
+ *     - Unknown phone numbers → OMITTED from the map
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * 2. POST /internal/contacts/attributes
- *    Bulk-fetch contact attributes.  Auto-creates missing contacts + links to project.
+ * ─────────────────────────────────────────────────────────────────────────
+ * POST /internal/contacts/attributes
  *
- *    Request:
- *      {
- *        "projectId": 101,
- *        "phoneNumbers": ["919876543210", "918765432109"],
- *        "attributeKeys": ["first_name", "city", "account_type"]
- *      }
+ *   Request:
+ *     {
+ *       "projectId": 101,
+ *       "phoneNumbers":   ["919876543210", "918765432109"],
+ *       "attributeKeys":  ["first_name", "city", "account_type"]
+ *     }
  *
- *    Response 200:
- *      [
- *        {
- *          "contactId": 4001,
- *          "phoneNumber": "919876543210",
- *          "attributes": [
- *            { "key": "first_name", "value": "Ashish" },
- *            { "key": "city",       "value": "Delhi"  },
- *            { "key": "account_type", "value": "premium" }
- *          ]
- *        }
- *      ]
- * ─────────────────────────────────────────────────────────────────────────────
+ *   Response 200 (plain array, no envelope):
+ *     [
+ *       {
+ *         "contactId": 4001,
+ *         "phoneNumber": "919876543210",
+ *         "attributes": [
+ *           { "key": "first_name",   "value": "Ashish"  },
+ *           { "key": "city",         "value": "Delhi"   },
+ *           { "key": "account_type", "value": "premium" }
+ *         ]
+ *       }
+ *     ]
+ *
+ *   Rules:
+ *     - Lookup only — unknown phones OMITTED (NOT auto-created)
+ *     - Missing attribute value → null  (spec: "null or omit, both fine")
+ * ─────────────────────────────────────────────────────────────────────────
  */
 @Slf4j
 @RestController
@@ -66,12 +75,6 @@ public class InternalContactController {
 
     private final InternalContactService internalContactService;
 
-    /**
-     * Endpoint 1 — resolve phones to contact IDs.
-     *
-     * Unknown phones are silently omitted from the map (per contract).
-     * No contacts are created or modified.
-     */
     @PostMapping("/resolve")
     public ResponseEntity<Map<String, Object>> resolveContacts(
             @Valid @RequestBody InternalResolveRequest request,
@@ -85,16 +88,10 @@ public class InternalContactController {
                 request.getPhoneNumbers()
         );
 
-        // Response shape: { "contacts": { "919876543210": 4001, ... } }
+        // Exact response shape from spec: { "contacts": { "919876543210": 4001 } }
         return ResponseEntity.ok(Map.of("contacts", contacts));
     }
 
-    /**
-     * Endpoint 2 — bulk-fetch attributes (auto-creates missing contacts + project links).
-     *
-     * Response is a flat JSON array, not wrapped in a "data" envelope,
-     * matching the inter-service contract exactly.
-     */
     @PostMapping("/attributes")
     public ResponseEntity<List<ContactInfo>> getAttributes(
             @Valid @RequestBody InternalAttributeRequest request,
@@ -106,12 +103,11 @@ public class InternalContactController {
 
         List<ContactInfo> result = internalContactService.getAttributes(
                 organizationId,
-                request.getProjectId(),
                 request.getPhoneNumbers(),
                 request.getAttributeKeys()
         );
 
-        // Response is a plain array — no wrapper envelope
+        // Plain array response — no wrapper envelope (matches spec exactly)
         return ResponseEntity.ok(result);
     }
 }
